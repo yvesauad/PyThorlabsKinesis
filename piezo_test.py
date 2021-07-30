@@ -16,6 +16,7 @@ def c_str_array(strings):
     return arr
 
 LOGGERFUNC = WINFUNCTYPE(None, c_void_p)
+TIMEOUT = 10
 
 class TLKinesisPiezoMotorController():
 
@@ -46,13 +47,14 @@ class TLKinesisPiezoMotorController():
         self.__GetNextMessage = _buildFunction(_library.KIM_GetNextMessage, [c_char_p, POINTER(c_ulong), POINTER(c_ulong),
                                                                              POINTER(c_ulong)], c_bool)
 
-    def __init__(self, serialno):
+    def __init__(self, serialno, pollingTime = 100):
         self._initialize_library()
         self.__serial = serialno.encode()
         self.__fn = LOGGERFUNC(self._callback)
         self.__eventHandler = threading.Event()
         self.BuildDeviceList()
         self.OpenConnection()
+        self.StartPolling(pollingTime)
         time.sleep(0.5)
         self.__pos = self.GetCurrentPositionAll()
         self.RegisterMessageCallback()
@@ -64,6 +66,9 @@ class TLKinesisPiezoMotorController():
             print(f'Message is {res}. Hardware position is {self.GetCurrentPositionAll()}. '
                   f'Soft. position is {self.__pos}')
             self.__eventHandler.set()
+
+    def updatePosition(self):
+        self.__pos = self.GetCurrentPositionAll()
 
     def BuildDeviceList(self):
         return self.__BuildDeviceList()
@@ -78,20 +83,20 @@ class TLKinesisPiezoMotorController():
         return self.__Open(self.__serial)
 
     def MoveRelative(self, channel: int, step: int):
-        self.__eventHandler.clear()
         if self.__pos[channel - 1] != self.__pos[channel - 1] + step:
+            self.__eventHandler.clear()
             self.__pos[channel - 1] += step
             self.__MoveRelative(self.__serial, channel, step)
-            self.__eventHandler.wait(25)
+            self.__eventHandler.wait(TIMEOUT)
             return True
         return False
 
     def MoveAbsolute(self, channel: int, value: int):
-        self.__eventHandler.clear()
         if self.__pos[channel - 1] != value:
+            self.__eventHandler.clear()
             self.__pos[channel - 1] = value
             self.__MoveAbsolute(self.__serial, channel, value)
-            self.__eventHandler.wait(25)
+            self.__eventHandler.wait(TIMEOUT)
             return True
         return False
 
@@ -134,15 +139,10 @@ class TLKinesisPiezoMotorController():
 
 my_piezo = TLKinesisPiezoMotorController('97101311')
 
-val = 750
+val = 150
 my_piezo.MoveRelative(1, val)
 my_piezo.MoveRelative(2, val)
 my_piezo.MoveRelative(3, val)
 my_piezo.MoveRelative(4, val)
-
-time.sleep(2)
-#my_piezo.MoveAbsolute(2, 200)
-
-
 
 
