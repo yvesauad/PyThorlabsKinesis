@@ -27,7 +27,6 @@ class TLKinesisPiezoMotorController():
 
         self.__BuildDeviceList = _buildFunction(_library.TLI_BuildDeviceList, None, c_short)
         self.__GetDeviceListSize = _buildFunction(_library.TLI_GetDeviceListSize, None, c_short)
-        self.__GetDeviceList = _buildFunction(_library.TLI_GetDeviceList, [c_char_p], c_short)
         self.__CheckConnection = _buildFunction(_library.KIM_CheckConnection, [c_char_p], c_bool)
         self.__Open = _buildFunction(_library.KIM_Open, [c_char_p], c_short)
         self.__Enable = _buildFunction(_library.KIM_Enable, [c_char_p], c_short)
@@ -44,28 +43,33 @@ class TLKinesisPiezoMotorController():
         self.__PollingDuration = _buildFunction(_library.KIM_PollingDuration, [c_char_p], c_long)
         self.__StartPolling = _buildFunction(_library.KIM_StartPolling, [c_char_p, c_int], c_bool)
         self.__RegisterMessageCallback = _buildFunction(_library.KIM_RegisterMessageCallback, [c_char_p, LOGGERFUNC], c_void_p)
+        self.__GetNextMessage = _buildFunction(_library.KIM_GetNextMessage, [c_char_p, POINTER(c_ulong), POINTER(c_ulong),
+                                                                             POINTER(c_ulong)], c_bool)
 
     def __init__(self, serialno):
         self._initialize_library()
         self.__serial = serialno.encode()
         self.__fn = LOGGERFUNC(self._callback)
-        self.__hasEvent = threading.Event()
+        self.__eventHandler = threading.Event()
+        self.BuildDeviceList()
+        self.OpenConnection()
+        time.sleep(0.5)
+        self.__pos = self.GetCurrentPositionAll()
+        self.RegisterMessageCallback()
+        print(f'Initial position is {self.__pos}.')
 
     def _callback(self, p):
-        print('here')
-        #self.__hasEvent.set()
+        res = self.GetNextMessage()
+        if self.__pos == self.GetCurrentPositionAll():
+            print(f'Message is {res}. Hardware position is {self.GetCurrentPositionAll()}. '
+                  f'Soft. position is {self.__pos}')
+            self.__eventHandler.set()
 
     def BuildDeviceList(self):
         return self.__BuildDeviceList()
 
     def GetDeviceListSize(self):
         return self.__GetDeviceListSize()
-
-    def GetDeviceList(self):
-        bytedeco = bytes(10)
-        print(bytedeco)
-        a = self.__GetDeviceList(bytedeco)
-        print(a, bytedeco)
 
     def CheckConnection(self):
         return self.__CheckConnection(self.__serial)
@@ -74,11 +78,22 @@ class TLKinesisPiezoMotorController():
         return self.__Open(self.__serial)
 
     def MoveRelative(self, channel: int, step: int):
-        #self.__hasEvent.wait(10)
-        return self.__MoveRelative(self.__serial, channel, step)
+        self.__eventHandler.clear()
+        if self.__pos[channel - 1] != self.__pos[channel - 1] + step:
+            self.__pos[channel - 1] += step
+            self.__MoveRelative(self.__serial, channel, step)
+            self.__eventHandler.wait(25)
+            return True
+        return False
 
     def MoveAbsolute(self, channel: int, value: int):
-        return self.__MoveAbsolute(self.__serial, channel, value)
+        self.__eventHandler.clear()
+        if self.__pos[channel - 1] != value:
+            self.__pos[channel - 1] = value
+            self.__MoveAbsolute(self.__serial, channel, value)
+            self.__eventHandler.wait(25)
+            return True
+        return False
 
     def RequestStatusBits(self):
         return self.__RequestStatusBits(self.__serial)
@@ -91,6 +106,9 @@ class TLKinesisPiezoMotorController():
 
     def GetCurrentPosition(self, channel: int):
         return self.__GetCurrentPosition(self.__serial, channel)
+
+    def GetCurrentPositionAll(self):
+        return [self.__GetCurrentPosition(self.__serial, x+1) for x in range(4)]
 
     def MessageQueueSize(self):
         return self.__MessageQueueSize(self.__serial)
@@ -107,22 +125,24 @@ class TLKinesisPiezoMotorController():
     def RegisterMessageCallback(self):
         self.__RegisterMessageCallback(self.__serial, self.__fn)
 
+    def GetNextMessage(self):
+        msg_type = c_ulong(0x00)
+        msg_id = c_ulong(0x00)
+        msg_data = c_ulong(0x00)
+        res = self.__GetNextMessage(self.__serial, msg_type, msg_id, msg_data)
+        return (msg_type.value, msg_id.value, msg_data.value, res)
+
 my_piezo = TLKinesisPiezoMotorController('97101311')
-my_piezo.BuildDeviceList()
-my_piezo.OpenConnection()
-my_piezo.RegisterMessageCallback()
 
-#print(my_piezo.MessageQueueSize())
-
-val = -10000
+val = 750
 my_piezo.MoveRelative(1, val)
-#my_piezo.MoveRelative(1, val)
+my_piezo.MoveRelative(2, val)
+my_piezo.MoveRelative(3, val)
+my_piezo.MoveRelative(4, val)
 
-print(my_piezo.MessageQueueSize())
+time.sleep(2)
+#my_piezo.MoveAbsolute(2, 200)
 
-time.sleep(10)
-print(my_piezo.MessageQueueSize())
-#my_piezo.MoveRelative(2, val)
-#my_piezo.MoveRelative(3, val)
-#my_piezo.MoveRelative(4, val)
+
+
 
