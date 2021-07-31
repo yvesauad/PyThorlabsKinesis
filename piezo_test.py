@@ -4,6 +4,19 @@ from ctypes import c_uint, c_int, c_char, c_char_p, c_void_p, c_ushort, c_short,
             c_uint32, c_wchar, c_wchar_p, Array, CFUNCTYPE, WINFUNCTYPE
 import os, time
 import threading
+from enum import Enum
+
+#FTDI and Communication Errors
+class FTDI_COM_ERROR(Enum):
+    FT_OK = 0x00
+    FT_InvalidHandle = 0x01
+    FT_DeviceNotFound = 0x02
+    FT_DeviceNotOpened = 0X03
+    FT_IOError = 0x04
+    FT_InsufficientResources = 0x05
+    FT_InvalidParameter = 0x06
+    FT_DeviceNotPresent = 0x07
+    FT_IncorrectDevice = 0x08
 
 def _buildFunction(call, args, result):
     call.argtypes = args
@@ -19,6 +32,10 @@ LOGGERFUNC = WINFUNCTYPE(None, c_void_p)
 TIMEOUT = 10
 
 class TLKinesisPiezoMotorController():
+
+    def _error_check(self, val):
+        if val != 0: print(f'Error {FTDI_COM_ERROR(val)}')
+        return
 
     def _initialize_library(self):
 
@@ -71,66 +88,131 @@ class TLKinesisPiezoMotorController():
         self.__pos = self.GetCurrentPositionAll()
 
     def BuildDeviceList(self):
-        return self.__BuildDeviceList()
+        """
+        :return: Error Code
+        """
+        return self._error_check(self.__BuildDeviceList())
 
     def GetDeviceListSize(self):
+        """
+        :return: int16
+        """
         return self.__GetDeviceListSize()
 
     def CheckConnection(self):
-        return self.__CheckConnection(self.__serial)
+        """
+        :return: Boolean
+        """
+        return self._error_check(self.__CheckConnection(self.__serial))
 
     def OpenConnection(self):
-        return self.__Open(self.__serial)
+        """
+        :return:
+        Error Code
+        """
+        return self._error_check(self.__Open(self.__serial))
 
     def MoveRelative(self, channel: int, step: int):
+        """
+
+        :param channel: [1 - 4] for KIM101
+        :param step: int
+        :return: Error Code
+        """
         if self.__pos[channel - 1] != self.__pos[channel - 1] + step:
             self.__eventHandler.clear()
             self.__pos[channel - 1] += step
-            self.__MoveRelative(self.__serial, channel, step)
+            self._error_check(self.__MoveRelative(self.__serial, channel, step))
             self.__eventHandler.wait(TIMEOUT)
             return True
         return False
 
     def MoveAbsolute(self, channel: int, value: int):
+        """
+
+        :param channel: [1 - 4] for KIM101
+        :param value: int
+        :return: Error Check
+        """
         if self.__pos[channel - 1] != value:
             self.__eventHandler.clear()
             self.__pos[channel - 1] = value
-            self.__MoveAbsolute(self.__serial, channel, value)
+            self._error_check(self.__MoveAbsolute(self.__serial, channel, value))
             self.__eventHandler.wait(TIMEOUT)
             return True
         return False
 
     def RequestStatusBits(self):
-        return self.__RequestStatusBits(self.__serial)
+        """
+
+        :return: Error Code
+        """
+        return self._error_check(self.__RequestStatusBits(self.__serial))
 
     def GetStatusBits(self, channel: int):
+        """
+
+        :param channel: [1 - 4] for KIM101
+        :return: DWORD (c_ulong)
+        """
         return self.__GetStatusBits(self.__serial, channel)
 
     def RequestCurrentPosition(self, channel: int):
-        return self.__RequestCurrentPosition(self.__serial, channel)
+        """
+
+        :param channel: [1 - 4] for KIM101
+        :return: Error Code
+        """
+        return self._error_check(self.__RequestCurrentPosition(self.__serial, channel))
 
     def GetCurrentPosition(self, channel: int):
+        """
+
+        :param channel: [1 - 4] for KIM101
+        :return: int32
+        """
         return self.__GetCurrentPosition(self.__serial, channel)
 
     def GetCurrentPositionAll(self):
         return [self.__GetCurrentPosition(self.__serial, x+1) for x in range(4)]
 
     def MessageQueueSize(self):
+        """
+
+        :return: int
+        """
         return self.__MessageQueueSize(self.__serial)
 
     def GetFirmwareVersion(self):
+        """
+
+        :return: DWORD (c_ulong)
+        """
         return self.__GetFirmwareVersion(self.__serial)
 
     def PollingDuration(self):
+        """
+
+        :return: int64 (in ms)
+        """
         return self.__PollingDuration(self.__serial)
 
     def StartPolling(self, time: int):
+        """
+
+        :param time: int (in ms)
+        :return: Boolean (True if successful)
+        """
         return self.__StartPolling(self.__serial, time)
 
     def RegisterMessageCallback(self):
         self.__RegisterMessageCallback(self.__serial, self.__fn)
 
     def GetNextMessage(self):
+        """
+
+        :return: Boolean (True if successful)
+        """
         msg_type = c_ulong(0x00)
         msg_id = c_ulong(0x00)
         msg_data = c_ulong(0x00)
@@ -139,10 +221,10 @@ class TLKinesisPiezoMotorController():
 
 my_piezo = TLKinesisPiezoMotorController('97101311')
 
-val = 150
+val = -1
 my_piezo.MoveRelative(1, val)
-my_piezo.MoveRelative(2, val)
-my_piezo.MoveRelative(3, val)
-my_piezo.MoveRelative(4, val)
+#my_piezo.MoveRelative(2, val)
+#my_piezo.MoveRelative(3, val)
+#my_piezo.MoveRelative(4, val)
 
 
