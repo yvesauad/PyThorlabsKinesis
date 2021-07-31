@@ -1,22 +1,11 @@
-from ctypes import cdll, create_string_buffer, POINTER, byref
-from ctypes import c_uint, c_int, c_char, c_char_p, c_void_p, c_ushort, c_short, c_int, c_long, \
-    c_ulong, c_bool, c_double, c_uint64, \
-            c_uint32, c_wchar, c_wchar_p, Array, CFUNCTYPE, WINFUNCTYPE
+from ctypes import cdll, POINTER
+from ctypes import c_uint, c_char_p, c_void_p, c_ushort, c_short, c_int, c_long, \
+    c_ulong, c_bool, WINFUNCTYPE
+
+from Modules.ErrorEnum import FTDI_COM_ERROR
+
 import os, time
 import threading
-from enum import Enum
-
-#FTDI and Communication Errors
-class FTDI_COM_ERROR(Enum):
-    FT_OK = 0x00
-    FT_InvalidHandle = 0x01
-    FT_DeviceNotFound = 0x02
-    FT_DeviceNotOpened = 0X03
-    FT_IOError = 0x04
-    FT_InsufficientResources = 0x05
-    FT_InvalidParameter = 0x06
-    FT_DeviceNotPresent = 0x07
-    FT_IncorrectDevice = 0x08
 
 def _buildFunction(call, args, result):
     call.argtypes = args
@@ -40,7 +29,7 @@ class TLKinesisPiezoMotorController():
     def _initialize_library(self):
 
         libname = os.path.dirname(__file__)
-        libname = os.path.join(libname, "dlls\Thorlabs.MotionControl.KCube.InertialMotor.dll")
+        libname = os.path.join(libname, "../dlls/Thorlabs.MotionControl.KCube.InertialMotor.dll")
         _library = cdll.LoadLibrary(libname)
 
         self.__BuildDeviceList = _buildFunction(_library.TLI_BuildDeviceList, None, c_short)
@@ -89,24 +78,28 @@ class TLKinesisPiezoMotorController():
 
     def BuildDeviceList(self):
         """
+
         :return: Error Code
         """
         return self._error_check(self.__BuildDeviceList())
 
     def GetDeviceListSize(self):
         """
+
         :return: int16
         """
         return self.__GetDeviceListSize()
 
     def CheckConnection(self):
         """
+
         :return: Boolean
         """
         return self._error_check(self.__CheckConnection(self.__serial))
 
     def OpenConnection(self):
         """
+
         :return:
         Error Code
         """
@@ -218,13 +211,3 @@ class TLKinesisPiezoMotorController():
         msg_data = c_ulong(0x00)
         res = self.__GetNextMessage(self.__serial, msg_type, msg_id, msg_data)
         return (msg_type.value, msg_id.value, msg_data.value, res)
-
-my_piezo = TLKinesisPiezoMotorController('97101311')
-
-val = -1
-my_piezo.MoveRelative(1, val)
-#my_piezo.MoveRelative(2, val)
-#my_piezo.MoveRelative(3, val)
-#my_piezo.MoveRelative(4, val)
-
-
