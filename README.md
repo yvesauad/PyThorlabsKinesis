@@ -8,9 +8,10 @@ a four-channel K-Cube Piezo Inertia Motor
 Controller.
 
 ## Quick Start
-Clone the repository:
+Clone and install the repository using:
 
-    git clone https://github.com/yvesauad/ThorlabsKinesis-KCubePiezo.git
+    >>> git clone https://github.com/yvesauad/ThorlabsKinesis-KCubePiezo.git
+    >>> python setup.py install
 
 Test simply using your motor serial number, which can be found
 in the product closure, and typing:
