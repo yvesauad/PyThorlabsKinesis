@@ -1,4 +1,4 @@
-from Modules import Kinesis_PMC
+from Modules import Kinesis_InertialMotor, Kinesis_StrainGauge
 
 """
 Instantiate my piezo controller and prints if the connection is successful. 
@@ -6,7 +6,7 @@ First string is the serial number
 Polling time is the feedback message period. 
 Timeout is the maximum time delay.
 """
-my_piezo = Kinesis_PMC.TLKinesisPiezoMotorController('97101311', pollingTime=100, TIMEOUT=1.5)
+my_piezo = Kinesis_InertialMotor.TLKinesisInertialMotor('97101311', pollingTime=100, TIMEOUT=1.5)
 print(my_piezo.CheckConnection())
 
 """

@@ -29,7 +29,7 @@ class TLI_HardwareInformation(Structure):
 
 LOGGERFUNC = WINFUNCTYPE(None, c_void_p)
 
-class TLKinesisPiezoMotorController():
+class TLKinesisInertialMotor():
 
     def _error_check(self, val):
         if val != 0: print(f'Error {FTDI_COM_ERROR(val)}')
