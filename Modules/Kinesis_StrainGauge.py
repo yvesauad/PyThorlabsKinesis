@@ -77,6 +77,8 @@ class TLKinesisStrainGauge():
         self.__GetReadingExt = _buildFunction(_library.SG_GetReadingExt, [c_char_p, c_bool, POINTER(c_bool)], c_int)
         self.__GetMaximumTravel = _buildFunction(_library.SG_GetMaximumTravel, [c_char_p], c_ulong)
         self.__GetForceCalib = _buildFunction(_library.SG_GetForceCalib, [c_char_p], c_uint)
+        self.__GetHubAnalogOutput = _buildFunction(_library.SG_GetHubAnalogOutput, [c_char_p], c_uint)
+        self.__SetHubAnalogOutput = _buildFunction(_library.SG_SetHubAnalogOutput, [c_char_p, c_uint], c_short)
 
 
     def __init__(self, serialno, pollingTime = 150, TIMEOUT = 5.0, SIMULATION = False):
@@ -210,6 +212,7 @@ class TLKinesisStrainGauge():
 
     def SetDisplayMode(self, mode):
         self.__eventHandler.clear()
+        assert (mode == 1 or mode == 2 or mode == 3)
         return self._error_check(self.__SetDisplayMode(self.__serial, mode))
 
     def GetReadingExt(self, clip):
@@ -224,3 +227,10 @@ class TLKinesisStrainGauge():
 
     def GetForceCalib(self):
         return self.__GetForceCalib(self.__serial)
+
+    def GetHubAnalogOutput(self):
+        return self.__GetHubAnalogOutput(self.__serial)
+
+    def SetHubAnalogOutput(self, mode):
+        assert (mode == 1 or mode == 2)
+        return self._error_check(self.__SetHubAnalogOutput(self.__serial, mode))
