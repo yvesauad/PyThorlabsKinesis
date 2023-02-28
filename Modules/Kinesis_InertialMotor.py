@@ -41,6 +41,7 @@ class TLKinesisInertialMotor():
         libname = os.path.join(libname, "../dlls/Thorlabs.MotionControl.KCube.InertialMotor.dll")
         _library = cdll.LoadLibrary(libname)
 
+        self.__InitializeSimulations = _buildFunction(_library.TLI_InitializeSimulations, None, c_void_p)
         self.__BuildDeviceList = _buildFunction(_library.TLI_BuildDeviceList, None, c_short)
         self.__GetDeviceListSize = _buildFunction(_library.TLI_GetDeviceListSize, None, c_short)
         self.__CheckConnection = _buildFunction(_library.KIM_CheckConnection, [c_char_p], c_bool)
@@ -68,18 +69,25 @@ class TLKinesisInertialMotor():
         self.__SetDriveOPParameters = _buildFunction(_library.KIM_SetDriveOPParameters,
                                                      [c_char_p, c_ushort, c_short, c_int, c_int], c_short)
 
-    def __init__(self, serialno, pollingTime = 100, TIMEOUT = 5):
+    def __init__(self, serialno, pollingTime = 100, TIMEOUT = 5, SIMULATION = False):
         self._initialize_library()
         self.__serial = serialno.encode()
         self.__fn = LOGGERFUNC(self._callback)
         self.__eventHandler = threading.Event()
         self.__timeout = TIMEOUT
-        self.BuildDeviceList()
+        if SIMULATION: self.InitializeSimulations()
         self.OpenConnection()
         self.StartPolling(pollingTime)
         time.sleep(0.5)
         self.__pos = self.GetCurrentPositionAll()
         self.RegisterMessageCallback()
+
+        #Message system
+        self.__msg_type = c_ulong(0)
+        self.__msg_id = c_ulong(0)
+        self.__msg_data = c_ulong(0)
+
+
         print(f'Initial position is {self.__pos}.')
 
     def _callback(self, p):
@@ -89,6 +97,13 @@ class TLKinesisInertialMotor():
 
     def updatePosition(self):
         self.__pos = self.GetCurrentPositionAll()
+
+    def InitializeSimulations(self):
+        """
+
+        :return:
+        """
+        return self.__InitializeSimulations()
 
     def BuildDeviceList(self):
         """
@@ -109,7 +124,7 @@ class TLKinesisInertialMotor():
 
         :return: Boolean
         """
-        return self._error_check(self.__CheckConnection(self.__serial))
+        return self.__CheckConnection(self.__serial)
 
     def OpenConnection(self):
         """
@@ -232,11 +247,8 @@ class TLKinesisInertialMotor():
 
         :return: Boolean (True if successful)
         """
-        msg_type = c_ulong(0x00)
-        msg_id = c_ulong(0x00)
-        msg_data = c_ulong(0x00)
-        res = self.__GetNextMessage(self.__serial, msg_type, msg_id, msg_data)
-        return (msg_type.value, msg_id.value, msg_data.value, res)
+        res = self.__GetNextMessage(self.__serial, self.__msg_type, self.__msg_id, self.__msg_data)
+        return (self.__msg_type.value, self.__msg_id.value, self.__msg_data.value, res)
 
     def GetHardwareInfoBlock(self):
         """

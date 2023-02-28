@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="thorlabs_KIM",
-    version="1.2",
+    version="1.3",
     author="Yves Auad",
     description="ThorLabs Piezo Motor Controller",
     url="https://github.com/yvesauad/ThorlabsKinesis-KCubePiezo",

@@ -27,6 +27,18 @@ class TLI_HardwareInformation(Structure):
                 ("modificationState", c_ushort),
                 ("numChannels", c_short)]
 
+
+
+class MessageQueue():
+    def __init__(self):
+        self.msg_type = c_ulong(0)
+        self.msg_id = c_ulong(0)
+        self.msg_data = c_ulong(0)
+
+    def get_status(self):
+        return [self.msg_type.value, self.msg_id.value, self.msg_data.value]
+
+
 LOGGERFUNC = WINFUNCTYPE(None, c_void_p)
 
 class TLKinesisStrainGauge():
@@ -41,39 +53,59 @@ class TLKinesisStrainGauge():
         libname = os.path.join(libname, "../dlls/Thorlabs.MotionControl.KCube.StrainGauge.dll")
         _library = cdll.LoadLibrary(libname)
 
+        self.__InitializeSimulations = _buildFunction(_library.TLI_InitializeSimulations, None, c_void_p)
         self.__BuildDeviceList = _buildFunction(_library.TLI_BuildDeviceList, None, c_short)
         self.__GetDeviceListSize = _buildFunction(_library.TLI_GetDeviceListSize, None, c_short)
         self.__CheckConnection = _buildFunction(_library.SG_CheckConnection, [c_char_p], c_bool)
         self.__Open = _buildFunction(_library.SG_Open, [c_char_p], c_short)
+        self.__Close = _buildFunction(_library.SG_Close, [c_char_p], None)
         self.__Enable = _buildFunction(_library.SG_Enable, [c_char_p], c_short)
         self.__GetStatusBits = _buildFunction(_library.SG_GetStatusBits, [c_char_p, c_ushort], c_ulong)
         self.__MessageQueueSize = _buildFunction(_library.SG_MessageQueueSize, [c_char_p], c_int)
         self.__GetFirmwareVersion = _buildFunction(_library.SG_GetFirmwareVersion, [c_char_p], c_ulong)
         self.__PollingDuration = _buildFunction(_library.SG_PollingDuration, [c_char_p], c_long)
         self.__StartPolling = _buildFunction(_library.SG_StartPolling, [c_char_p, c_int], c_bool)
-        self.__RegisterMessageCallback = _buildFunction(_library.SG_RegisterMessageCallback, [c_char_p, LOGGERFUNC], c_void_p)
+        self.__StopPolling = _buildFunction(_library.SG_StopPolling, [c_char_p], None)
+        self.__RegisterMessageCallback = _buildFunction(_library.SG_RegisterMessageCallback, [c_char_p, LOGGERFUNC], None)
         self.__GetNextMessage = _buildFunction(_library.SG_GetNextMessage, [c_char_p, POINTER(c_ulong), POINTER(c_ulong),
                                                                              POINTER(c_ulong)], c_bool)
         self.__GetHardwareInfoBlock = _buildFunction(_library.SG_GetHardwareInfoBlock, [c_char_p,
                                                                                         POINTER(TLI_HardwareInformation)], c_short)
 
-    def __init__(self, serialno, pollingTime = 100, TIMEOUT = 5):
+        self.__SetZero = _buildFunction(_library.SG_SetZero, [c_char_p], c_short)
+        self.__SetDisplayMode = _buildFunction(_library.SG_SetDisplayMode, [c_char_p, c_int], c_short)
+        self.__GetReadingExt = _buildFunction(_library.SG_GetReadingExt, [c_char_p, c_bool, POINTER(c_bool)], c_int)
+        self.__GetMaximumTravel = _buildFunction(_library.SG_GetMaximumTravel, [c_char_p], c_ulong)
+        self.__GetForceCalib = _buildFunction(_library.SG_GetForceCalib, [c_char_p], c_uint)
+
+
+    def __init__(self, serialno, pollingTime = 150, TIMEOUT = 5.0, SIMULATION = False):
         self._initialize_library()
         self.__serial = serialno.encode()
         self.__fn = LOGGERFUNC(self._callback)
         self.__eventHandler = threading.Event()
         self.__timeout = TIMEOUT
+        if SIMULATION: self.InitializeSimulations()
         self.BuildDeviceList()
         self.OpenConnection()
         self.StartPolling(pollingTime)
         time.sleep(0.5)
+        self.__messageQueue = MessageQueue()
         self.RegisterMessageCallback()
 
     def _callback(self, p):
-        pass
-        #res = self.GetNextMessage()
-        #if self.__pos == self.GetCurrentPositionAll():
-        #    self.__eventHandler.set()
+        res = self.GetNextMessage()
+        #print(res, self.__messageQueue.get_status())
+        if self.__messageQueue.get_status() == [0, 2, 0]: #Settings properly done
+            print('OK')
+            self.__eventHandler.set()
+
+    def InitializeSimulations(self):
+        """
+
+        :return:
+        """
+        return self.__InitializeSimulations()
 
     def BuildDeviceList(self):
         """
@@ -94,7 +126,7 @@ class TLKinesisStrainGauge():
 
         :return: Boolean
         """
-        return self._error_check(self.__CheckConnection(self.__serial))
+        return self.__CheckConnection(self.__serial)
 
     def OpenConnection(self):
         """
@@ -149,11 +181,9 @@ class TLKinesisStrainGauge():
 
         :return: Boolean (True if successful)
         """
-        msg_type = c_ulong(0x00)
-        msg_id = c_ulong(0x00)
-        msg_data = c_ulong(0x00)
-        res = self.__GetNextMessage(self.__serial, msg_type, msg_id, msg_data)
-        return (msg_type.value, msg_id.value, msg_data.value, res)
+        res = self.__GetNextMessage(self.__serial, self.__messageQueue.msg_type, self.__messageQueue.msg_id,
+                                    self.__messageQueue.msg_data)
+        return res
 
     def GetHardwareInfoBlock(self):
         """
@@ -174,3 +204,23 @@ class TLKinesisStrainGauge():
             "Number of channels": value.numChannels
         }
         return dict
+
+    def SetZero(self):
+        return self._error_check(self.__SetZero(self.__serial))
+
+    def SetDisplayMode(self, mode):
+        self.__eventHandler.clear()
+        return self._error_check(self.__SetDisplayMode(self.__serial, mode))
+
+    def GetReadingExt(self, clip):
+        overrange = c_bool(1)
+        if not self.__eventHandler.wait(self.__timeout): #Must wait until the settings is properly done
+            print('Timeout achieved. Updating position to the current position.')
+        response = self.__GetReadingExt(self.__serial, clip, overrange)
+        return (response, overrange)
+
+    def GetMaximumTravel(self):
+        return self.__GetMaximumTravel(self.__serial)
+
+    def GetForceCalib(self):
+        return self.__GetForceCalib(self.__serial)
