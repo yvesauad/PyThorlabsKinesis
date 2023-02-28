@@ -1,4 +1,4 @@
-from Modules import Kinesis_InertialMotor, Kinesis_StrainGauge
+from Modules import Kinesis_InertialMotor
 
 """
 Instantiate my piezo controller and prints if the connection is successful. 

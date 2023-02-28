@@ -41,7 +41,7 @@ class MessageQueue():
 
 LOGGERFUNC = WINFUNCTYPE(None, c_void_p)
 
-class TLKinesisStrainGauge():
+class TLKinesisPiezoDriver():
 
     def _error_check(self, val):
         if val != 0: print(f'Error {FTDI_COM_ERROR(val)}')
@@ -50,35 +50,30 @@ class TLKinesisStrainGauge():
     def _initialize_library(self):
 
         libname = os.path.dirname(__file__)
-        libname = os.path.join(libname, "../dlls/Thorlabs.MotionControl.KCube.StrainGauge.dll")
+        libname = os.path.join(libname, "../dlls/Thorlabs.MotionControl.KCube.Piezo.dll")
         _library = cdll.LoadLibrary(libname)
 
         self.__InitializeSimulations = _buildFunction(_library.TLI_InitializeSimulations, None, c_void_p)
         self.__BuildDeviceList = _buildFunction(_library.TLI_BuildDeviceList, None, c_short)
         self.__GetDeviceListSize = _buildFunction(_library.TLI_GetDeviceListSize, None, c_short)
-        self.__CheckConnection = _buildFunction(_library.SG_CheckConnection, [c_char_p], c_bool)
-        self.__Open = _buildFunction(_library.SG_Open, [c_char_p], c_short)
-        self.__Close = _buildFunction(_library.SG_Close, [c_char_p], None)
-        self.__Enable = _buildFunction(_library.SG_Enable, [c_char_p], c_short)
-        self.__GetStatusBits = _buildFunction(_library.SG_GetStatusBits, [c_char_p, c_ushort], c_ulong)
-        self.__MessageQueueSize = _buildFunction(_library.SG_MessageQueueSize, [c_char_p], c_int)
-        self.__GetFirmwareVersion = _buildFunction(_library.SG_GetFirmwareVersion, [c_char_p], c_ulong)
-        self.__PollingDuration = _buildFunction(_library.SG_PollingDuration, [c_char_p], c_long)
-        self.__StartPolling = _buildFunction(_library.SG_StartPolling, [c_char_p, c_int], c_bool)
-        self.__StopPolling = _buildFunction(_library.SG_StopPolling, [c_char_p], None)
-        self.__RegisterMessageCallback = _buildFunction(_library.SG_RegisterMessageCallback, [c_char_p, LOGGERFUNC], None)
-        self.__GetNextMessage = _buildFunction(_library.SG_GetNextMessage, [c_char_p, POINTER(c_ulong), POINTER(c_ulong),
+        self.__CheckConnection = _buildFunction(_library.PCC_CheckConnection, [c_char_p], c_bool)
+        self.__Open = _buildFunction(_library.PCC_Open, [c_char_p], c_short)
+        self.__Close = _buildFunction(_library.PCC_Close, [c_char_p], None)
+        self.__Enable = _buildFunction(_library.PCC_Enable, [c_char_p], c_short)
+        self.__GetStatusBits = _buildFunction(_library.PCC_GetStatusBits, [c_char_p, c_ushort], c_ulong)
+        self.__MessageQueueSize = _buildFunction(_library.PCC_MessageQueueSize, [c_char_p], c_int)
+        self.__GetFirmwareVersion = _buildFunction(_library.PCC_GetFirmwareVersion, [c_char_p], c_ulong)
+        self.__PollingDuration = _buildFunction(_library.PCC_PollingDuration, [c_char_p], c_long)
+        self.__StartPolling = _buildFunction(_library.PCC_StartPolling, [c_char_p, c_int], c_bool)
+        self.__StopPolling = _buildFunction(_library.PCC_StopPolling, [c_char_p], None)
+        self.__RegisterMessageCallback = _buildFunction(_library.PCC_RegisterMessageCallback, [c_char_p, LOGGERFUNC], None)
+        self.__GetNextMessage = _buildFunction(_library.PCC_GetNextMessage, [c_char_p, POINTER(c_ulong), POINTER(c_ulong),
                                                                              POINTER(c_ulong)], c_bool)
-        self.__GetHardwareInfoBlock = _buildFunction(_library.SG_GetHardwareInfoBlock, [c_char_p,
+        self.__GetHardwareInfoBlock = _buildFunction(_library.PCC_GetHardwareInfoBlock, [c_char_p,
                                                                                         POINTER(TLI_HardwareInformation)], c_short)
 
-        self.__SetZero = _buildFunction(_library.SG_SetZero, [c_char_p], c_short)
-        self.__SetDisplayMode = _buildFunction(_library.SG_SetDisplayMode, [c_char_p, c_uint], c_short)
-        self.__GetReadingExt = _buildFunction(_library.SG_GetReadingExt, [c_char_p, c_bool, POINTER(c_bool)], c_int)
-        self.__GetMaximumTravel = _buildFunction(_library.SG_GetMaximumTravel, [c_char_p], c_ulong)
-        self.__GetForceCalib = _buildFunction(_library.SG_GetForceCalib, [c_char_p], c_int)
-        self.__GetHubAnalogOutput = _buildFunction(_library.SG_GetHubAnalogOutput, [c_char_p], c_uint)
-        self.__SetHubAnalogOutput = _buildFunction(_library.SG_SetHubAnalogOutput, [c_char_p, c_uint], c_short)
+        self.__SetZero = _buildFunction(_library.PCC_SetZero, [c_char_p], c_short)
+        self.__SetPositionControlMode = _buildFunction(_library.PCC_SetPositionControlMode, [c_char_p], c_int)
 
 
     def __init__(self, serialno, pollingTime = 150, TIMEOUT = 5.0, SIMULATION = False):
@@ -210,35 +205,15 @@ class TLKinesisStrainGauge():
     def SetZero(self):
         return self._error_check(self.__SetZero(self.__serial))
 
-    def SetDisplayMode(self, mode):
+    def SetPositionControlMode(self, mode):
         """
 
         :param mode:
-            1 => Position
-            2 => Voltage
-            3 => Force
+            1 => Open loop
+            2 => Closed loop
+            3 => Open loop smoothed
+            4 => Closed loop smoothed
         :return:
         """
-        self.__eventHandler.clear()
-        assert (mode == 1 or mode == 2 or mode == 3)
-        return self._error_check(self.__SetDisplayMode(self.__serial, mode))
-
-    def GetReadingExt(self, clip):
-        overrange = c_bool(1)
-        if not self.__eventHandler.wait(self.__timeout): #Must wait until the settings is properly done
-            print('Timeout achieved. Updating position to the current position.')
-        response = self.__GetReadingExt(self.__serial, clip, overrange)
-        return (response, overrange)
-
-    def GetMaximumTravel(self):
-        return self.__GetMaximumTravel(self.__serial)
-
-    def GetForceCalib(self):
-        return self.__GetForceCalib(self.__serial)
-
-    def GetHubAnalogOutput(self):
-        return self.__GetHubAnalogOutput(self.__serial)
-
-    def SetHubAnalogOutput(self, mode):
-        assert (mode == 1 or mode == 2)
-        return self._error_check(self.__SetHubAnalogOutput(self.__serial, mode))
+        assert (mode == 1 or mode == 2 or mode == 3 or mode == 4)
+        return self._error_check(self.__SetPositionControlMode(self.__serial, mode))
